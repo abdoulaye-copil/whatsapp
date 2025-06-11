@@ -194,7 +194,7 @@ async function addNewContact(contact) {
       phone: cleanPhone,
       status: contact.status || "Hey! J'utilise WhatsApp",
       online: false,
-      avatar: contact.avatar || generateInitialsAvatar(contact.name)
+      avatar: contact.avatar || generateInitialsAvatar(contact.name).dataUrl
     };
     
     const response = await fetch(`${API_URL}/contacts`, {
@@ -231,29 +231,41 @@ async function searchContacts(query) {
   }
 }
 
-// Ajouter la fonction createNewChat
+// Fonction createNewChat corrigée
 async function createNewChat(contact) {
   try {
+    if (!contact || !contact.id) {
+      console.error('Contact invalide:', contact);
+      return null;
+    }
+
     loadChats();
     
-    // Vérifier si le chat existe déjà
+    // Vérifier si le chat existe déjà en utilisant l'ID du contact
     const existingChat = chats.find(c => String(c.id) === String(contact.id));
     if (existingChat) {
+      console.log('Chat existant trouvé:', existingChat);
       return existingChat;
     }
 
-    // Créer un nouveau chat
+    // Créer un nouveau chat avec les données du contact
     const newChat = {
-      id: contact.id,
+      id: contact.id, // Utiliser l'ID du contact
       name: contact.name,
       lastMessage: '',
-      timestamp: new Date().toLocaleTimeString('fr-FR'),
+      timestamp: new Date().toLocaleTimeString('fr-FR', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      }),
       unreadCount: 0,
-      avatar: contact.avatar || `https://api.dicebear.com/6.x/initials/svg?seed=${contact.name}`,
-      online: false,
+      avatar: contact.avatar || generateInitialsAvatar(contact.name).dataUrl,
+      online: contact.online || false,
       status: contact.status || "Hey! J'utilise WhatsApp",
+      phone: contact.phone,
       messages: []
     };
+
+    console.log('Création du nouveau chat:', newChat);
 
     // Sauvegarder en local d'abord
     chats.push(newChat);
@@ -261,7 +273,7 @@ async function createNewChat(contact) {
 
     try {
       // Sauvegarder dans l'API
-      const response = await fetch('http://localhost:3000/chats', {
+      const response = await fetch(`${API_URL}/chats`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -277,12 +289,14 @@ async function createNewChat(contact) {
           chats[index] = savedChat;
           saveChats();
         }
+        console.log('Chat sauvegardé dans l\'API:', savedChat);
         return savedChat;
       }
     } catch (apiError) {
       console.warn('API error, using local data:', apiError);
     }
 
+    console.log('Chat créé localement:', newChat);
     return newChat;
   } catch (error) {
     console.error('Error in createNewChat:', error);

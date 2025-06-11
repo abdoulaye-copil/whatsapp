@@ -204,13 +204,27 @@ async function handleAddContactSubmit(e) {
       avatar: avatarData.dataUrl
     };
 
-    await addNewContact(newContact);
+    const addedContact = await addNewContact(newContact);
+    console.log('Contact ajouté:', addedContact);
     
     // Refresh contacts list if visible
     const contactsList = document.getElementById('contacts-list');
     if (contactsList) {
-      const contacts = await getAllContacts();
-      renderContacts(contacts);
+      try {
+        const contacts = await getAllContacts();
+        console.log('Rafraîchissement de la liste des contacts');
+        
+        // Get the current onContactSelect callback from the new discussion view
+        const newDiscussionContainer = document.getElementById('new-discussion-container');
+        if (newDiscussionContainer) {
+          // We need to re-render the contacts with the callback
+          // This is a bit tricky since we need the callback function
+          // For now, we'll just reload the contacts without the callback
+          await renderContacts(contacts, null);
+        }
+      } catch (error) {
+        console.error('Erreur lors du rafraîchissement:', error);
+      }
     }
     
     hideAddContactModal();
