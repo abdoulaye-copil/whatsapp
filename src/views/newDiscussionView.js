@@ -3,11 +3,14 @@ import { renderAddContactModal } from './addContactModalView.js';
 import { renderCreateGroupModal } from './createGroupModalView.js';
 import { generateInitialsAvatar } from '../utils/avatarGenerator.js';
 
+let currentContacts = []; // Variable globale pour stocker les contacts actuels
+
 async function renderContacts(contacts, onContactSelect) {
   const contactsList = document.getElementById('contacts-list');
   if (!contactsList) return;
 
   const contactsArray = Array.isArray(contacts) ? contacts : [];
+  currentContacts = contactsArray; // Stocker les contacts dans la variable globale
 
   if (contactsArray.length === 0) {
     contactsList.innerHTML = `
@@ -53,14 +56,18 @@ async function renderContacts(contacts, onContactSelect) {
   contactItems.forEach(item => {
     item.addEventListener('click', () => {
       const contactId = item.dataset.contactId;
-      const selectedContact = contacts.find(c => String(c.id) === String(contactId));
+      const selectedContact = currentContacts.find(c => String(c.id) === String(contactId));
       
       console.log('Contact sélectionné:', selectedContact);
+      console.log('ID recherché:', contactId);
+      console.log('Contacts disponibles:', currentContacts);
       
       if (selectedContact && onContactSelect) {
         onContactSelect(selectedContact);
       } else {
         console.error('Contact non trouvé ou callback manquant');
+        console.error('selectedContact:', selectedContact);
+        console.error('onContactSelect:', onContactSelect);
       }
     });
   });
