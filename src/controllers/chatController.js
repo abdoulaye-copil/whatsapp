@@ -1,5 +1,5 @@
 import { getAllChats, getChatById, searchChats, markAsRead, createNewChat } from '../models/chatModel.js';
-import { getMessagesByChatId, addMessage } from '../models/messageModel.js';
+import { getMessagesByChatId, addMessage, markMessagesAsRead, markMessagesAsDelivered } from '../models/messageModel.js';
 import { renderChatList, updateChatInList } from '../views/chatListView.js';
 import { 
   renderChatHeader, 
@@ -69,6 +69,9 @@ async function handleNewChat(contact) {
     const messages = getMessagesByChatId(chat.id) || [];
     renderMessages(messages);
 
+    // Marquer les messages comme lus
+    markMessagesAsRead(chat.id);
+
     // Mettre à jour la liste des chats
     const allChats = getAllChats();
     renderChatList(allChats, handleChatClick);
@@ -117,6 +120,7 @@ function handleChatClick(chat) {
   // Gérer les messages non lus
   if (chat.unreadCount > 0) {
     markAsRead(chat.id);
+    markMessagesAsRead(chat.id);
     updateChatInList(getChatById(chat.id));
   }
 
@@ -128,6 +132,11 @@ function handleChatClick(chat) {
   renderChatHeader(chat);
   const messages = getMessagesByChatId(chat.id);
   renderMessages(messages || []);
+
+  // Simuler la livraison des messages après un délai
+  setTimeout(() => {
+    markMessagesAsDelivered(chat.id);
+  }, 1000);
 }
 
 function initSearch() {
@@ -164,11 +173,22 @@ async function handleSendMessage(text, isVoice = false, duration = null, audioBl
         isMe: true,
         isVoice: true,
         duration: duration,
-        audioBlob: audioBlob
+        audioBlob: audioBlob,
+        sent: true,
+        delivered: false,
+        read: false
       };
       
       // Ajouter le message directement à l'interface
       addMessageToChat(message);
+      
+      // Simuler la livraison et la lecture
+      setTimeout(() => {
+        message.delivered = true;
+        setTimeout(() => {
+          message.read = true;
+        }, 2000);
+      }, 1000);
       
       // Mettre à jour le dernier message dans la liste des chats
       const chats = getAllChats();
@@ -176,9 +196,36 @@ async function handleSendMessage(text, isVoice = false, duration = null, audioBl
       
     } else {
       // Message texte normal
-      message = await addMessage(activeChat.id, text);
+      message = await addMessage(activeChat.id, text, true);
       if (message) {
         addMessageToChat(message);
+        
+        // Simuler la livraison et la lecture
+        setTimeout(() => {
+          message.delivered = true;
+          // Re-render le message pour mettre à jour le statut
+          const messageElements = document.querySelectorAll(`[data-message-id="${message.id}"]`);
+          messageElements.forEach(el => {
+            const statusIcon = el.querySelector('.status-icon');
+            if (statusIcon) {
+              statusIcon.innerHTML = '✓✓';
+              statusIcon.className = 'text-[#8696a0] text-[12px] ml-1 status-icon';
+            }
+          });
+          
+          setTimeout(() => {
+            message.read = true;
+            // Re-render le message pour mettre à jour le statut (lu)
+            messageElements.forEach(el => {
+              const statusIcon = el.querySelector('.status-icon');
+              if (statusIcon) {
+                statusIcon.innerHTML = '✓✓';
+                statusIcon.className = 'text-[#53bdeb] text-[12px] ml-1 status-icon';
+              }
+            });
+          }, 2000);
+        }, 1000);
+        
         const chats = getAllChats();
         renderChatList(chats, handleChatClick);
         
@@ -202,7 +249,11 @@ function simulateReply(chatId) {
         "On peut en discuter plus tard?",
         "👍",
         "😊",
-        "Je vais y réfléchir."
+        "Je vais y réfléchir.",
+        "C'est une bonne idée !",
+        "Parfait, merci !",
+        "Je te tiens au courant.",
+        "À bientôt !"
       ];
       
       const randomReply = replies[Math.floor(Math.random() * replies.length)];
@@ -216,7 +267,7 @@ function simulateReply(chatId) {
         timestamp: replyMessage.timestamp
       });
     }
-  }, 2000);
+  }, Math.random() * 3000 + 2000); // Réponse entre 2 et 5 secondes
 }
 
 export { initChat };

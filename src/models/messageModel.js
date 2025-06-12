@@ -22,7 +22,7 @@ function getMessagesByChatId(chatId) {
   return messages[chatId] || [];
 }
 
-async function addMessage(chatId, text) {
+async function addMessage(chatId, text, isMe = true) {
   try {
     const message = {
       id: Date.now().toString(),
@@ -32,23 +32,40 @@ async function addMessage(chatId, text) {
         hour: '2-digit',
         minute: '2-digit'
       }),
-      sent: true
+      isMe: isMe,
+      sent: true,
+      delivered: isMe ? true : false,
+      read: isMe ? false : true
     };
 
-    // Ajouter à l'API
-    const response = await fetch('http://localhost:3000/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(message)
-    });
+    // Ajouter le message localement d'abord
+    loadMessages();
+    if (!messages[chatId]) {
+      messages[chatId] = [];
+    }
+    messages[chatId].push(message);
+    saveMessages();
 
-    if (!response.ok) {
-      throw new Error('Erreur lors de l\'ajout du message');
+    // Essayer d'ajouter à l'API
+    try {
+      const response = await fetch(`${API_URL}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(message)
+      });
+
+      if (!response.ok) {
+        console.warn('Erreur API, message sauvegardé localement seulement');
+      }
+    } catch (apiError) {
+      console.warn('API non disponible, message sauvegardé localement:', apiError);
     }
 
+    // Mettre à jour le dernier message du chat
     await updateLastMessage(chatId, text);
+    
     return message;
 
   } catch (error) {
@@ -57,7 +74,35 @@ async function addMessage(chatId, text) {
   }
 }
 
+// Marquer les messages comme lus
+function markMessagesAsRead(chatId) {
+  loadMessages();
+  if (messages[chatId]) {
+    messages[chatId].forEach(message => {
+      if (!message.isMe) {
+        message.read = true;
+      }
+    });
+    saveMessages();
+  }
+}
+
+// Marquer les messages comme livrés
+function markMessagesAsDelivered(chatId) {
+  loadMessages();
+  if (messages[chatId]) {
+    messages[chatId].forEach(message => {
+      if (message.isMe && !message.delivered) {
+        message.delivered = true;
+      }
+    });
+    saveMessages();
+  }
+}
+
 export {
   getMessagesByChatId,
-  addMessage
+  addMessage,
+  markMessagesAsRead,
+  markMessagesAsDelivered
 };

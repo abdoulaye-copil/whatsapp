@@ -1,4 +1,4 @@
-// Fichier chatView.js simplifié et corrigé
+// Fichier chatView.js refait pour ressembler exactement à WhatsApp
 import { EmojiPicker } from '../components/EmojiPicker.js';
 import { renderChatOptionsModal } from './chatOptionsModalView.js';
 import { MenuIcon, SearchIcon } from '../utils/icons.js';
@@ -27,7 +27,7 @@ function renderChatHeader(chat) {
   
   chatHeader.classList.remove('hidden');
   activeChatName.textContent = chat.name;
-  activeChatStatus.textContent = chat.online ? 'En ligne' : 'Hors ligne';
+  activeChatStatus.textContent = chat.online ? 'En ligne' : 'Vu pour la dernière fois récemment';
   activeChatAvatar.src = chat.avatar;
 
   if (headerRight) {
@@ -64,25 +64,31 @@ function renderMessages(messages) {
   messagesContainer.classList.remove('hidden');
   messagesList.innerHTML = '';
   
-  // Add date separator
-  const dateSeparator = document.createElement('div');
-  dateSeparator.className = 'flex justify-center my-4';
+  // Style du conteneur de messages pour ressembler à WhatsApp
+  messagesContainer.className = 'flex-1 overflow-y-auto bg-[#0b141a] relative';
+  messagesContainer.style.backgroundImage = `url("data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cdefs%3E%3Cpattern id='whatsapp-bg' x='0' y='0' width='100' height='100' patternUnits='userSpaceOnUse'%3E%3Cpath d='M0 0h100v100H0z' fill='%23111b21'/%3E%3Cpath d='M20 20h60v60H20z' fill='none' stroke='%23182229' stroke-width='0.5' opacity='0.1'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width='100%25' height='100%25' fill='url(%23whatsapp-bg)'/%3E%3C/svg%3E")`;
   
-  const dateElement = document.createElement('div');
-  dateElement.className = 'bg-[#182229] text-[#8696a0] text-xs px-3 py-1 rounded-md';
-  dateElement.textContent = 'AUJOURD\'HUI';
+  messagesList.className = 'px-4 py-2 space-y-1';
   
-  dateSeparator.appendChild(dateElement);
-  messagesList.appendChild(dateSeparator);
+  // Grouper les messages par date
+  const messagesByDate = groupMessagesByDate(messages);
   
-  // Add messages
-  messages.forEach(message => {
-    const messageElement = createMessageElement(message);
-    messagesList.appendChild(messageElement);
+  Object.keys(messagesByDate).forEach(date => {
+    // Ajouter le séparateur de date
+    const dateSeparator = createDateSeparator(date);
+    messagesList.appendChild(dateSeparator);
+    
+    // Ajouter les messages de cette date
+    messagesByDate[date].forEach(message => {
+      const messageElement = createMessageElement(message);
+      messagesList.appendChild(messageElement);
+    });
   });
   
   // Scroll to bottom
-  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  setTimeout(() => {
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  }, 100);
   
   // Show message input
   document.getElementById('message-input-container').classList.remove('hidden');
@@ -91,75 +97,185 @@ function renderMessages(messages) {
   document.getElementById('welcome-screen').classList.add('hidden');
 }
 
-// Create a single message element
-function createMessageElement(message) {
-  const messageElement = document.createElement('div');
-  messageElement.className = `flex ${message.isMe ? 'justify-end' : 'justify-start'} mb-4`;
+// Grouper les messages par date
+function groupMessagesByDate(messages) {
+  const groups = {};
   
-  const messageBubble = document.createElement('div');
-  messageBubble.className = `max-w-xs md:max-w-md rounded-lg px-4 py-2 ${
-    message.isMe ? 'bg-[#005c4b] rounded-tr-none' : 'bg-[#202c33] rounded-tl-none'
-  }`;
-  
-  if (message.isImage) {
-    const imageContainer = document.createElement('div');
-    imageContainer.className = 'w-64 h-48 bg-gray-700 rounded overflow-hidden flex items-center justify-center';
-    
-    if (message.imageData) {
-      const img = document.createElement('img');
-      img.src = message.imageData;
-      img.className = 'w-full h-full object-cover';
-      imageContainer.appendChild(img);
-    } else {
-      const imageIcon = document.createElement('span');
-      imageIcon.className = 'text-gray-400';
-      imageIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>';
-      imageContainer.appendChild(imageIcon);
+  messages.forEach(message => {
+    const date = getDateKey(message.timestamp);
+    if (!groups[date]) {
+      groups[date] = [];
     }
-    
-    messageBubble.appendChild(imageContainer);
-  } else if (message.isVoice) {
-    const voiceContainer = createVoiceMessageElement(message);
-    messageBubble.appendChild(voiceContainer);
-  } else if (message.isFile) {
-    const fileContainer = createFileMessageElement(message);
-    messageBubble.appendChild(fileContainer);
-  } else {
-    const messageText = document.createElement('p');
-    messageText.className = 'text-white break-words';
-    messageText.innerHTML = parseEmojis(message.text);
-    messageBubble.appendChild(messageText);
+    groups[date].push(message);
+  });
+  
+  return groups;
+}
+
+// Obtenir la clé de date pour le groupement
+function getDateKey(timestamp) {
+  const now = new Date();
+  const messageDate = new Date();
+  
+  // Si timestamp est une heure (HH:MM), on utilise aujourd'hui
+  if (typeof timestamp === 'string' && timestamp.match(/^\d{1,2}:\d{2}$/)) {
+    return 'AUJOURD\'HUI';
   }
   
-  const timeStamp = document.createElement('span');
-  timeStamp.className = 'text-xs text-gray-400 ml-2 self-end mt-1';
-  timeStamp.textContent = message.timestamp;
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
   
-  messageBubble.appendChild(timeStamp);
-  messageElement.appendChild(messageBubble);
+  if (messageDate >= today) {
+    return 'AUJOURD\'HUI';
+  } else if (messageDate >= yesterday) {
+    return 'HIER';
+  } else {
+    return messageDate.toLocaleDateString('fr-FR', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric' 
+    });
+  }
+}
+
+// Créer le séparateur de date
+function createDateSeparator(dateText) {
+  const separator = document.createElement('div');
+  separator.className = 'flex justify-center my-4';
   
-  return messageElement;
+  const dateLabel = document.createElement('div');
+  dateLabel.className = 'bg-[#182229] text-[#8696a0] text-xs px-3 py-1 rounded-md font-medium';
+  dateLabel.textContent = dateText;
+  
+  separator.appendChild(dateLabel);
+  return separator;
+}
+
+// Create a single message element (style WhatsApp)
+function createMessageElement(message) {
+  const messageContainer = document.createElement('div');
+  messageContainer.className = `flex ${message.isMe ? 'justify-end' : 'justify-start'} mb-1`;
+  
+  const messageBubble = document.createElement('div');
+  messageBubble.className = `relative max-w-[65%] rounded-lg px-3 py-2 ${
+    message.isMe 
+      ? 'bg-[#005c4b] text-white rounded-br-sm' 
+      : 'bg-[#202c33] text-white rounded-bl-sm'
+  } shadow-sm`;
+  
+  // Contenu du message
+  const messageContent = document.createElement('div');
+  
+  if (message.isImage) {
+    const imageContainer = createImageMessage(message);
+    messageContent.appendChild(imageContainer);
+  } else if (message.isVoice) {
+    const voiceContainer = createVoiceMessageElement(message);
+    messageContent.appendChild(voiceContainer);
+  } else if (message.isFile) {
+    const fileContainer = createFileMessageElement(message);
+    messageContent.appendChild(fileContainer);
+  } else {
+    const messageText = document.createElement('div');
+    messageText.className = 'text-[14px] leading-[19px] break-words pr-12';
+    messageText.innerHTML = parseEmojis(message.text);
+    messageContent.appendChild(messageText);
+  }
+  
+  // Footer avec timestamp et statut
+  const messageFooter = document.createElement('div');
+  messageFooter.className = 'flex items-center justify-end gap-1 mt-1';
+  
+  const timestamp = document.createElement('span');
+  timestamp.className = `text-[11px] ${message.isMe ? 'text-[#8696a0]' : 'text-[#8696a0]'} font-normal`;
+  timestamp.textContent = message.timestamp;
+  
+  messageFooter.appendChild(timestamp);
+  
+  // Ajouter les indicateurs de statut pour les messages envoyés
+  if (message.isMe) {
+    const statusIcon = document.createElement('span');
+    statusIcon.className = 'text-[#8696a0] text-[12px] ml-1';
+    
+    if (message.sent && message.delivered && message.read) {
+      // Message lu (double coche bleue)
+      statusIcon.innerHTML = '✓✓';
+      statusIcon.className = 'text-[#53bdeb] text-[12px] ml-1';
+    } else if (message.sent && message.delivered) {
+      // Message livré (double coche grise)
+      statusIcon.innerHTML = '✓✓';
+    } else if (message.sent) {
+      // Message envoyé (simple coche)
+      statusIcon.innerHTML = '✓';
+    } else {
+      // Message en cours d'envoi (horloge)
+      statusIcon.innerHTML = '🕐';
+    }
+    
+    messageFooter.appendChild(statusIcon);
+  }
+  
+  messageBubble.appendChild(messageContent);
+  messageBubble.appendChild(messageFooter);
+  messageContainer.appendChild(messageBubble);
+  
+  return messageContainer;
+}
+
+function createImageMessage(message) {
+  const imageContainer = document.createElement('div');
+  imageContainer.className = 'rounded-lg overflow-hidden max-w-[300px] mb-2';
+  
+  if (message.imageData) {
+    const img = document.createElement('img');
+    img.src = message.imageData;
+    img.className = 'w-full h-auto max-h-[400px] object-cover';
+    img.loading = 'lazy';
+    imageContainer.appendChild(img);
+  } else {
+    const placeholder = document.createElement('div');
+    placeholder.className = 'w-full h-48 bg-[#2a3942] flex items-center justify-center';
+    placeholder.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="text-gray-400">
+        <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
+        <circle cx="9" cy="9" r="2"/>
+        <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+      </svg>
+    `;
+    imageContainer.appendChild(placeholder);
+  }
+  
+  return imageContainer;
 }
 
 function createVoiceMessageElement(message) {
   const voiceContainer = document.createElement('div');
-  voiceContainer.className = 'flex items-center gap-2 min-w-[200px]';
+  voiceContainer.className = 'flex items-center gap-2 min-w-[200px] py-1';
   
   const playButton = document.createElement('button');
-  playButton.className = 'text-white hover:text-gray-300 flex-shrink-0';
-  playButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+  playButton.className = 'text-white hover:text-gray-300 flex-shrink-0 w-8 h-8 rounded-full bg-white bg-opacity-20 flex items-center justify-center';
+  playButton.innerHTML = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+      <polygon points="5 3 19 12 5 21 5 3"></polygon>
+    </svg>
+  `;
   
   const waveform = document.createElement('div');
-  waveform.className = 'h-8 flex-1 bg-[#2a3942] rounded-lg flex items-center justify-center px-2';
-  waveform.innerHTML = '<div class="flex gap-1 items-center">' + 
-    Array.from({length: 20}, () => '<div class="w-1 bg-gray-400 rounded" style="height: ' + (Math.random() * 20 + 5) + 'px"></div>').join('') +
-    '</div>';
+  waveform.className = 'flex-1 flex items-center gap-1 h-8';
+  
+  // Créer une forme d'onde simple
+  for (let i = 0; i < 30; i++) {
+    const bar = document.createElement('div');
+    bar.className = 'w-1 bg-white bg-opacity-60 rounded-full';
+    bar.style.height = `${Math.random() * 20 + 4}px`;
+    waveform.appendChild(bar);
+  }
   
   const duration = document.createElement('span');
-  duration.className = 'text-sm text-gray-400 flex-shrink-0';
-  duration.textContent = message.duration || '00:00';
+  duration.className = 'text-sm text-white text-opacity-80 flex-shrink-0 font-mono';
+  duration.textContent = message.duration || '0:00';
 
-  // Audio functionality
+  // Fonctionnalité audio
   if (message.audioUrl || message.audioBlob) {
     const audioElement = document.createElement('audio');
     if (message.audioBlob instanceof Blob) {
@@ -173,31 +289,23 @@ function createVoiceMessageElement(message) {
     let isPlaying = false;
 
     playButton.addEventListener('click', () => {
-      // Stop all other audio elements
-      const allAudioElements = document.querySelectorAll('audio');
-      allAudioElements.forEach(audio => {
-        if (audio !== audioElement && !audio.paused) {
-          audio.pause();
-          audio.currentTime = 0;
-        }
-      });
-
-      // Reset all other play buttons
-      const allPlayButtons = document.querySelectorAll('.voice-play-btn');
-      allPlayButtons.forEach(btn => {
-        if (btn !== playButton) {
-          btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
-        }
-      });
-
       if (isPlaying) {
         audioElement.pause();
         audioElement.currentTime = 0;
-        playButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+        playButton.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+        `;
         isPlaying = false;
       } else {
         audioElement.play().then(() => {
-          playButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>';
+          playButton.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <rect x="6" y="4" width="4" height="16"></rect>
+              <rect x="14" y="4" width="4" height="16"></rect>
+            </svg>
+          `;
           isPlaying = true;
         }).catch(error => {
           console.error('Erreur lors de la lecture audio:', error);
@@ -207,10 +315,12 @@ function createVoiceMessageElement(message) {
 
     audioElement.addEventListener('ended', () => {
       isPlaying = false;
-      playButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
+      playButton.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <polygon points="5 3 19 12 5 21 5 3"></polygon>
+        </svg>
+      `;
     });
-
-    playButton.classList.add('voice-play-btn');
   }
 
   voiceContainer.appendChild(playButton);
@@ -222,11 +332,16 @@ function createVoiceMessageElement(message) {
 
 function createFileMessageElement(message) {
   const fileContainer = document.createElement('div');
-  fileContainer.className = 'flex items-center gap-3 p-2 bg-[#2a3942] rounded-lg min-w-[200px]';
+  fileContainer.className = 'flex items-center gap-3 p-3 bg-black bg-opacity-20 rounded-lg min-w-[250px] mb-2';
   
   const fileIcon = document.createElement('div');
-  fileIcon.className = 'w-10 h-10 bg-[#00a884] rounded-full flex items-center justify-center flex-shrink-0';
-  fileIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>';
+  fileIcon.className = 'w-12 h-12 bg-white bg-opacity-20 rounded-full flex items-center justify-center flex-shrink-0';
+  fileIcon.innerHTML = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+      <polyline points="14 2 14 8 20 8"></polyline>
+    </svg>
+  `;
   
   const fileInfo = document.createElement('div');
   fileInfo.className = 'flex-1 min-w-0';
@@ -236,7 +351,7 @@ function createFileMessageElement(message) {
   fileName.textContent = message.fileName || 'Document';
   
   const fileSize = document.createElement('div');
-  fileSize.className = 'text-gray-400 text-xs';
+  fileSize.className = 'text-white text-opacity-70 text-xs';
   fileSize.textContent = formatFileSize(message.fileSize || 0);
   
   fileInfo.appendChild(fileName);
@@ -249,23 +364,48 @@ function createFileMessageElement(message) {
 }
 
 function parseEmojis(text) {
-  // Simple emoji parsing - in a real app you'd use a proper emoji library
-  return text.replace(/:\)/g, '😊')
-             .replace(/:\(/g, '😢')
-             .replace(/:D/g, '😃')
-             .replace(/;\)/g, '😉')
-             .replace(/<3/g, '❤️');
+  // Conversion des emojis texte en emojis Unicode
+  return text
+    .replace(/:\)/g, '😊')
+    .replace(/:\(/g, '😢')
+    .replace(/:D/g, '😃')
+    .replace(/;\)/g, '😉')
+    .replace(/<3/g, '❤️')
+    .replace(/\n/g, '<br>'); // Support des retours à la ligne
 }
 
 // Add a new message to the chat
 function addMessageToChat(message) {
   const messagesList = document.getElementById('messages-list');
+  
+  // Vérifier si on doit ajouter un nouveau séparateur de date
+  const lastSeparator = messagesList.querySelector('.flex.justify-center:last-of-type');
+  const messageDate = getDateKey(message.timestamp);
+  
+  if (!lastSeparator || !lastSeparator.textContent.includes(messageDate)) {
+    const dateSeparator = createDateSeparator(messageDate);
+    messagesList.appendChild(dateSeparator);
+  }
+  
   const messageElement = createMessageElement(message);
   messagesList.appendChild(messageElement);
   
-  // Scroll to bottom
+  // Animation d'apparition
+  messageElement.style.opacity = '0';
+  messageElement.style.transform = 'translateY(10px)';
+  
+  requestAnimationFrame(() => {
+    messageElement.style.transition = 'all 0.2s ease-out';
+    messageElement.style.opacity = '1';
+    messageElement.style.transform = 'translateY(0)';
+  });
+  
+  // Scroll to bottom avec animation fluide
   const messagesContainer = document.getElementById('messages-container');
-  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  messagesContainer.scrollTo({
+    top: messagesContainer.scrollHeight,
+    behavior: 'smooth'
+  });
 }
 
 // Initialize the message input and voice recording
@@ -274,6 +414,10 @@ function initMessageInput(onSendMessage) {
   const voiceBtn = document.getElementById('voice-btn');
   const emojiBtn = document.getElementById('emoji-btn');
   const messageInputContainer = document.getElementById('message-input-container');
+
+  // Style de l'input pour ressembler à WhatsApp
+  messageInput.className = 'w-full bg-[#2a3942] text-white rounded-lg px-4 py-3 outline-none placeholder-gray-400 text-[15px]';
+  messageInput.placeholder = 'Tapez un message';
 
   // Initialize emoji picker
   emojiPicker = initEmojiPicker();
@@ -334,7 +478,6 @@ function initMessageInput(onSendMessage) {
 
         document.getElementById('send-record').addEventListener('click', () => {
           stopVoiceRecording();
-          // The audio will be processed in the mediaRecorder.stop event
           setTimeout(() => {
             if (mediaRecorder && mediaRecorder.audioChunks && mediaRecorder.audioChunks.length > 0) {
               const audioBlob = new Blob(mediaRecorder.audioChunks, { type: mediaRecorder.mimeType });
@@ -372,13 +515,18 @@ function initMessageInput(onSendMessage) {
 
     if (!messageInput || !voiceBtn || !emojiBtn) return;
 
+    // Style de l'input
+    messageInput.className = 'w-full bg-[#2a3942] text-white rounded-lg px-4 py-3 outline-none placeholder-gray-400 text-[15px]';
+
     function handleInput() {
       updateButton(messageInput.value);
     }
 
     function handleKeyPress(event) {
-      if (event.key === 'Enter' && messageInput.value.trim() !== '') {
-        onSendMessage(messageInput.value);
+      if (event.key === 'Enter' && !event.shiftKey && messageInput.value.trim() !== '') {
+        event.preventDefault();
+        const messageText = messageInput.value.trim();
+        onSendMessage(messageText);
         messageInput.value = '';
         updateButton('');
       }
